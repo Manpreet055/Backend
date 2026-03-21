@@ -48,11 +48,6 @@ const entrySchema = new mongoose.Schema(
       type: String,
       default: "Cash",
     },
-    tags: [String],
-    isRecurring: {
-      type: Boolean,
-      default: false,
-    },
     notes: {
       type: String,
       default: "No additional details",
