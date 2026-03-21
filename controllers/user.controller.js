@@ -11,7 +11,7 @@ export const getUserById = async (req, res) => {
   const { id } = req.user;
 
   try {
-    const user = await User.findById(id).lean();
+    const user = await User.findById(id).populate("transactions").lean();
     if (!user || user.matchedCount === 0)
       res.status(404).json({
         msg: "user not found",

@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 
 const entrySchema = new mongoose.Schema(
   {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     description: {
       type: String,
       required: true,
@@ -48,7 +53,10 @@ const entrySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    notes: String,
+    notes: {
+      type: String,
+      default: "No additional details",
+    },
   },
   {
     timestamps: true,
