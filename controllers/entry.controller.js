@@ -70,23 +70,44 @@ export const addTransaction = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   const { id } = req.user;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new ApiError("Invalid User ID", 400);
-  }
+
   try {
-    const transactions = await Entry.find({ userId: id });
-    if (transactions.length === 0) {
-      return res.status(404).json({
-        msg: "No previous entry found... ",
-      });
+    let { limit, page, sortingOrder, sortField, ...filters } = req.query;
+
+    const limitNum = parseInt(limit) || 10;
+    const pageNum = parseInt(page) || 1;
+    const skip = (pageNum - 1) * limitNum;
+    const order = sortingOrder === "desc" ? -1 : 1;
+    const sortObj = sortField ? { [sortField]: order } : { createdAt: -1 };
+
+    const query = { userId: id };
+    if (filters.category) query.category = filters.category;
+    if (filters.transactionType)
+      query.transactionType = filters.transactionType;
+
+    const [transactions, totalCount] = await Promise.all([
+      Entry.find(query).sort(sortObj).skip(skip).limit(limitNum).lean(),
+      Entry.countDocuments(query),
+    ]);
+
+    if (transactions.length === 0 && pageNum === 1) {
+      return res.status(404).json({ msg: "No transactions found" });
     }
 
+    const totalPages = Math.ceil(totalCount / limitNum);
+
     res.status(200).json({
-      msg: "Found these Transactions",
+      success: true,
       transactions,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: pageNum,
+        limit: limitNum,
+      },
     });
   } catch (error) {
-    throw new ApiError("Server Error", 500);
+    res.status(500).json({ msg: error.message || "Server Error" });
   }
 };
 
