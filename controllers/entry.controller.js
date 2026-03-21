@@ -73,6 +73,7 @@ export const getTransactions = async (req, res) => {
 
   try {
     let { limit, page, sortingOrder, sortField, ...filters } = req.query;
+    // console.log(filters);
 
     const limitNum = parseInt(limit) || 10;
     const pageNum = parseInt(page) || 1;
@@ -85,9 +86,10 @@ export const getTransactions = async (req, res) => {
     if (filters.transactionType)
       query.transactionType = filters.transactionType;
 
-    const [transactions, totalCount] = await Promise.all([
+    const [transactions, totalCount, categories] = await Promise.all([
       Entry.find(query).sort(sortObj).skip(skip).limit(limitNum).lean(),
       Entry.countDocuments(query),
+      Entry.find(query).distinct("category"),
     ]);
 
     if (transactions.length === 0 && pageNum === 1) {
@@ -99,6 +101,7 @@ export const getTransactions = async (req, res) => {
     res.status(200).json({
       success: true,
       transactions,
+      categories,
       pagination: {
         totalCount,
         totalPages,
