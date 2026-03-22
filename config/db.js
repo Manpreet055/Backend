@@ -2,9 +2,7 @@ import mongoose from "mongoose";
 
 const dbConnection = () => {
   mongoose
-    .connect(
-      "mongodb+srv://Admin_Manpreet:6sB0FSdhKLRvoBhH@cluster1.wo7auap.mongodb.net/?appName=Cluster1/app",
-    )
+    .connect(process.env.MONGO_URI)
     .then((mongoose) => {
       console.log("DataBase connection established..");
       return mongoose;
