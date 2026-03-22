@@ -2,6 +2,7 @@ import Entry from "../models/entry.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError.js";
+import applyFilters from "../utils/parseFilters.js";
 
 export const addTransaction = async (req, res) => {
   const { id } = req.user;
@@ -72,33 +73,57 @@ export const getTransactions = async (req, res) => {
   const { id } = req.user;
 
   try {
-    let { limit, page, sortingOrder, sortField, ...filters } = req.query;
-    // console.log(filters);
+    const {
+      limit = 10,
+      page = 1,
+      sortingOrder,
+      sortField,
+      filters = {},
+      ...rest
+    } = req.query;
 
-    const limitNum = parseInt(limit) || 10;
-    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit, 10);
+    const pageNum = parseInt(page, 10);
     const skip = (pageNum - 1) * limitNum;
     const order = sortingOrder === "desc" ? -1 : 1;
+
     const sortObj = sortField ? { [sortField]: order } : { createdAt: -1 };
 
     const query = { userId: id };
-    if (filters.category) query.category = filters.category;
-    if (filters.transactionType)
-      query.transactionType = filters.transactionType;
+
+    let finalFilters = { ...filters };
+
+    Object.keys(rest).forEach((key) => {
+      const match = key.match(/^filters\[(.+)\]$/);
+      if (match) {
+        finalFilters[match[1]] = rest[key];
+      }
+    });
+
+    if (finalFilters.category) {
+      query.category = finalFilters.category;
+    }
+
+    if (finalFilters.transactionType) {
+      query.transactionType = finalFilters.transactionType;
+    }
 
     const [transactions, totalCount, categories] = await Promise.all([
       Entry.find(query).sort(sortObj).skip(skip).limit(limitNum).lean(),
       Entry.countDocuments(query),
-      Entry.find(query).distinct("category"),
+      Entry.find({ userId: id }).distinct("category"),
     ]);
 
     if (transactions.length === 0 && pageNum === 1) {
-      return res.status(404).json({ msg: "No transactions found" });
+      return res.status(404).json({
+        success: false,
+        msg: "No transactions found",
+      });
     }
 
     const totalPages = Math.ceil(totalCount / limitNum);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       transactions,
       categories,
@@ -110,7 +135,10 @@ export const getTransactions = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ msg: error.message || "Server Error" });
+    return res.status(500).json({
+      success: false,
+      msg: error.message || "Server Error",
+    });
   }
 };
 
