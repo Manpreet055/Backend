@@ -2,7 +2,6 @@ import Entry from "../models/entry.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError.js";
-import applyFilters from "../utils/parseFilters.js";
 
 export const addTransaction = async (req, res) => {
   const { id } = req.user;
@@ -108,11 +107,13 @@ export const getTransactions = async (req, res) => {
       query.transactionType = finalFilters.transactionType;
     }
 
-    const [transactions, totalCount, categories] = await Promise.all([
-      Entry.find(query).sort(sortObj).skip(skip).limit(limitNum).lean(),
-      Entry.countDocuments(query),
-      Entry.find({ userId: id }).distinct("category"),
-    ]);
+    const [transactions, totalCount, categories, transactionType] =
+      await Promise.all([
+        Entry.find(query).sort(sortObj).skip(skip).limit(limitNum).lean(),
+        Entry.countDocuments(query),
+        Entry.find({ userId: id }).distinct("category"),
+        Entry.find({ userId: id }).distinct("transactionType"),
+      ]);
 
     if (transactions.length === 0 && pageNum === 1) {
       return res.status(404).json({
@@ -126,7 +127,10 @@ export const getTransactions = async (req, res) => {
     return res.status(200).json({
       success: true,
       transactions,
-      categories,
+      filters: {
+        transactionType: [...transactionType],
+        categories: [...categories],
+      },
       pagination: {
         totalCount,
         totalPages,
@@ -196,5 +200,24 @@ export const deleteTransaction = async (req, res) => {
     res.status(500).json({ msg: "Server Error" });
   } finally {
     session.endSession();
+  }
+};
+
+export const getTransactionById = async (req, res) => {
+  const { id } = req?.user;
+  try {
+    const { transactionId } = req.params;
+    const transaction = await Entry.findById(transactionId);
+    if (!transaction) {
+      throw new ApiError("Transaction not found", 404);
+    }
+    res.status(200).json({
+      msg: "Transaction updated",
+      transaction,
+    });
+  } catch (error) {
+    res.status(500).json({
+      msg: "Internal Server Error" + error.message,
+    });
   }
 };

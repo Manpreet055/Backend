@@ -2,14 +2,21 @@ import {
   addTransaction,
   getTransactions,
   deleteTransaction,
+  getTransactionById,
 } from "../controllers/entry.controller.js";
 import { jwtmiddleware } from "../middlewares/authentication.middleware.js";
 import express from "express";
 
 const router = express();
 
-router.get("/get", jwtmiddleware, getTransactions);
-router.post("/add", jwtmiddleware, addTransaction);
-router.delete("/delete/:transactionId", jwtmiddleware, deleteTransaction);
+router
+  .route("/")
+  .get(jwtmiddleware, getTransactions)
+  .post(jwtmiddleware, addTransaction);
+
+router
+  .route("/:transactionId")
+  .get(jwtmiddleware, getTransactionById)
+  .delete(jwtmiddleware, deleteTransaction);
 
 export default router;

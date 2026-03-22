@@ -39,7 +39,7 @@ const entrySchema = new mongoose.Schema(
         "Education",
         "Travel",
         "Investments",
-        "Income",
+        "Salary",
         "Others",
       ],
       required: true,

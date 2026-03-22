@@ -31,7 +31,7 @@ app.use(urlencoded({ extended: true }));
 app.use("/users", userRouter);
 app.use("/entry", entryRoute);
 
-app.listen(3000, (err) => {
+app.listen(4000, (err) => {
   if (!err) {
     console.log("Server is running on port 3000");
   } else {
