@@ -3,8 +3,8 @@ import {
   getTransactions,
   deleteTransaction,
   getTransactionById,
-  getPDFFileofTransactions,
 } from "../controllers/entry.controller.js";
+import { getPDFFileofTransactions } from "../controllers/pdf.controller.js";
 import { jwtmiddleware } from "../middlewares/authentication.middleware.js";
 import express from "express";
 

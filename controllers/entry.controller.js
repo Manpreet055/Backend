@@ -2,8 +2,6 @@ import Entry from "../models/entry.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError.js";
-import PDFDocument from "pdfkit";
-import capitalizeFirstLetter from "../utils/utilsFunctions.js";
 
 export const addTransaction = async (req, res) => {
   const { id } = req.user;
@@ -221,70 +219,5 @@ export const getTransactionById = async (req, res) => {
     res.status(500).json({
       msg: "Internal Server Error" + error.message,
     });
-  }
-};
-
-export const getPDFFileofTransactions = async (req, res, next) => {
-  try {
-    const transactions = await Entry.find({ userId: req.user.id }).sort({
-      date: -1,
-    });
-
-    const doc = new PDFDocument({ margin: 50 });
-    let chunks = [];
-
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => {
-      const result = Buffer.concat(chunks);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", "attachment; filename=report.pdf");
-      res.send(result);
-    });
-
-    const monthName = new Date().toLocaleString("en-US", { month: "long" });
-    const year = new Date().getFullYear();
-    // Header
-    doc
-      .fontSize(20)
-      .text(`Transaction Report (${monthName}-${year})`, { align: "center" });
-    doc.moveDown();
-
-    // Table Header
-    doc.fontSize(12).fillColor("black");
-    doc.text("Date", 50, 150);
-    doc.text("Description", 150, 150);
-    doc.text("Category", 300, 150);
-    doc.text("Amount", 450, 150, { align: "right" });
-
-    doc.moveTo(50, 165).lineTo(550, 165).stroke(); // Underline header
-
-    // Table Rows
-    let y = 180;
-    transactions.forEach((trx) => {
-      doc
-        .fillColor("black")
-        .text(new Date(trx.date).toLocaleDateString(), 50, y);
-      doc.text(capitalizeFirstLetter(trx.description) || "N/A", 150, y, {
-        width: 280,
-      });
-      doc.text(trx.category || "N/A", 300, y, { width: 280 });
-
-      const isExpense = trx.amount < 0;
-      doc
-        .fillColor(isExpense ? "red" : "green")
-        .text(trx.amount.toLocaleString(), 450, y, { align: "right" });
-
-      y += 25; // Move to next row
-
-      // Handle page break if content is too long
-      if (y > 700) {
-        doc.addPage();
-        y = 50;
-      }
-    });
-
-    doc.end();
-  } catch (error) {
-    next(error);
   }
 };
