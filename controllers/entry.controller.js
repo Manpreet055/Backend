@@ -139,10 +139,7 @@ export const getTransactions = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      msg: error.message || "Server Error",
-    });
+    throw new ApiError(error.message || "Internal Server Error", 500);
   }
 };
 
@@ -197,7 +194,7 @@ export const deleteTransaction = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    res.status(500).json({ msg: "Server Error" });
+    throw new ApiError(error.message || "Internal Server Error", 500);
   } finally {
     session.endSession();
   }
@@ -216,8 +213,87 @@ export const getTransactionById = async (req, res) => {
       transaction,
     });
   } catch (error) {
-    res.status(500).json({
-      msg: "Internal Server Error" + error.message,
+    throw new ApiError(error.message || "Internal Server Error", 500);
+  }
+};
+
+export const updateTransactionById = async (req, res) => {
+  const { transactionId } = req.params;
+  const userId = req.user.id;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const oldEntry = await Entry.findById(transactionId).session(session);
+    if (!oldEntry || oldEntry.userId.toString() !== userId) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ msg: "Transaction not found" });
+    }
+
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    const oldAmt = Math.abs(oldEntry.amount);
+
+    if (oldEntry.transactionType === "Expense") {
+      user.totalExpenses -= oldAmt;
+    } else {
+      user.totalIncome -= oldAmt;
+    }
+
+    const updatedType = req.body.transactionType || oldEntry.transactionType;
+    const rawNewAmount =
+      req.body.amount !== undefined ? req.body.amount : oldAmt;
+
+    const newAmt = Math.abs(Number(rawNewAmount));
+    if (isNaN(newAmt)) {
+      throw new Error("Invalid amount provided");
+    }
+
+    const formattedAmount = updatedType === "Expense" ? -newAmt : newAmt;
+
+    if (updatedType === "Expense") {
+      user.totalExpenses += newAmt;
+    } else {
+      user.totalIncome += newAmt;
+    }
+
+    const updatedEntry = await Entry.findByIdAndUpdate(
+      transactionId,
+      {
+        ...req.body,
+        amount: formattedAmount,
+        transactionType: updatedType,
+      },
+      { new: true, session, runValidators: true },
+    );
+
+    user.totalBalance = user.totalIncome - user.totalExpenses;
+
+    await user.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      msg: "Transaction updated successfully",
+      entry: updatedEntry,
+      newBalance: user.totalBalance,
+    });
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    session.endSession();
+
+    res.status(error.statusCode || 500).json({
+      msg: error.message || "Internal Server Error",
     });
   }
 };

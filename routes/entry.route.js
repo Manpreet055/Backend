@@ -3,6 +3,7 @@ import {
   getTransactions,
   deleteTransaction,
   getTransactionById,
+  updateTransactionById,
 } from "../controllers/entry.controller.js";
 import { getPDFFileofTransactions } from "../controllers/pdf.controller.js";
 import { jwtmiddleware } from "../middlewares/authentication.middleware.js";
@@ -20,6 +21,7 @@ router
 router
   .route("/:transactionId")
   .get(jwtmiddleware, getTransactionById)
+  .patch(jwtmiddleware, updateTransactionById)
   .delete(jwtmiddleware, deleteTransaction);
 
 export default router;
