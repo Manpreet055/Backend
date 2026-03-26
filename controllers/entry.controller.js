@@ -78,6 +78,8 @@ export const getTransactions = async (req, res) => {
       sortingOrder,
       sortField,
       filters = {},
+      month, // Expected format: 1 to 12
+      year, // Optional: defaults to current year
       ...rest
     } = req.query;
 
@@ -85,10 +87,22 @@ export const getTransactions = async (req, res) => {
     const pageNum = parseInt(page, 10);
     const skip = (pageNum - 1) * limitNum;
     const order = sortingOrder === "desc" ? -1 : 1;
-
     const sortObj = sortField ? { [sortField]: order } : { createdAt: -1 };
 
     const query = { userId: id };
+
+    // Handle Month Filtering
+    const now = new Date();
+    const targetMonth = month ? parseInt(month, 10) - 1 : now.getMonth();
+    const targetYear = year ? parseInt(year, 10) : now.getFullYear();
+
+    const startDate = new Date(targetYear, targetMonth, 1);
+    const endDate = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+
+    query.createdAt = {
+      $gte: startDate,
+      $lte: endDate,
+    };
 
     let finalFilters = { ...filters };
 
@@ -118,7 +132,7 @@ export const getTransactions = async (req, res) => {
     if (transactions.length === 0 && pageNum === 1) {
       return res.status(404).json({
         success: false,
-        msg: "No transactions found",
+        msg: "No transactions found for this period",
       });
     }
 
@@ -139,10 +153,12 @@ export const getTransactions = async (req, res) => {
       },
     });
   } catch (error) {
-    throw new ApiError(error.message || "Internal Server Error", 500);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Internal Server Error",
+    });
   }
 };
-
 export const deleteTransaction = async (req, res) => {
   const { id } = req.user;
   const { transactionId } = req.params;

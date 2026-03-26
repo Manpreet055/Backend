@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    totalDebt: {
+      type: Number,
+      default: 0,
+    },
     preferredCurrency: {
       type: String,
       default: "USD",
@@ -46,6 +50,24 @@ const userSchema = new mongoose.Schema(
         ref: "Entry",
       },
     ],
+    lastMonthBalance: {
+      type: Number,
+      default: 0,
+    },
+    lastMonthIncome: {
+      type: Number,
+      default: 0,
+    },
+    lastMonthExpense: {
+      type: Number,
+      default: 0,
+    },
+
+    lastMonthDebt: {
+      type: Number,
+      default: 0,
+    },
+
     refreshToken: [
       {
         type: String,

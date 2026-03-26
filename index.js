@@ -8,21 +8,45 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 dotenv.config({ quiet: true });
 const app = express();
-dbConnection();
 
-// Initializing Middlewares
+(async () => {
+  try {
+    await dbConnection();
+  } catch (e) {
+    console.log(e.message);
+  }
+})();
+
+app.set("trust proxy", 1); // trust first proxy
+app.use(cookieParser());
+
 app.use(
   morgan("dev", {
     //this is the middleware used to check the incoming logs
     skip: (req) => req.method === "OPTIONS",
   }),
 );
-
-app.use(cookieParser());
 app.use(
   cors({
-    origin: ["http://localhost:5173", process.env.CORS_ORIGIN],
+    origin: function (origin, callback) {
+      const allowedOrigins =
+        process.env.NODE_ENV === "production"
+          ? [process.env.CORS_ORIGIN] // must be set in Vercel
+          : [
+              "http://localhost:5173",
+              "http://localhost:5174",
+              "http://172.16.17.149:5173",
+            ];
+
+      // Allow requests with no origin (like mobile apps, Postman, curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    maxAge: 86400, // 24 hours prefl
   }),
 );
 app.use(express.json());
