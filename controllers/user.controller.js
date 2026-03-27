@@ -77,7 +77,7 @@ export const login = async (req, res) => {
     if (!email || !password) {
       throw new Error("Please provide both email and password");
     }
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).populate("transactions");
     if (!user || user?.matchedCount === 0) {
       return res.status(404).json({
         msg: "User not found",
