@@ -52,8 +52,12 @@ app.use(
 app.use(express.json());
 app.use(urlencoded({ extended: true }));
 
+app;
 app.use("/users", userRouter);
 app.use("/entry", entryRoute);
+app.use("/health", (req, res) => {
+  res.status(200).json({ status: "OK" });
+});
 
 app.listen(4000, (err) => {
   if (!err) {
