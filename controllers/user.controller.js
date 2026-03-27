@@ -142,3 +142,30 @@ export const logoutUser = async (req, res) => {
   });
   return res.sendStatus(204);
 };
+
+export const updateUser = async (req, res, next) => {
+  const id = req?.user?.id;
+  try {
+    const { preferredCurrency } = req.body;
+
+    if (!preferredCurrency) {
+      throw new ApiError("Missing currency data", 400);
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      { $set: { preferredCurrency } },
+      { new: true, runValidators: true }, // "new" returns the updated doc
+    ).populate("transactions");
+
+    if (!user) throw new ApiError("User not Found", 404);
+
+    res.status(200).json({
+      msg: "User profile updated",
+      user,
+    });
+  } catch (error) {
+    // In Express async handlers, always use next(error)
+    next(error);
+  }
+};

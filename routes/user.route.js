@@ -8,11 +8,15 @@ import {
   signup,
   getUserById,
   logoutUser,
+  updateUser,
 } from "../controllers/user.controller.js";
 
 const router = express();
 
-router.get("/", jwtmiddleware, getUserById);
+router
+  .route("/")
+  .get(jwtmiddleware, getUserById)
+  .patch(jwtmiddleware, updateUser);
 router.post("/refresh-token", generateNewAccessToken);
 router.post("/signup", signup);
 router.post("/login", login);

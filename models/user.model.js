@@ -40,9 +40,20 @@ const userSchema = new mongoose.Schema(
       default: 0,
     },
     preferredCurrency: {
-      type: String,
-      default: "USD",
-      uppercase: true,
+      code: {
+        type: String,
+        default: "USD",
+        uppercase: true,
+        trim: true,
+      },
+      symbol: {
+        type: String,
+        default: "$",
+      },
+      name: {
+        type: String,
+        default: "US Dollar",
+      },
     },
     transactions: [
       {
