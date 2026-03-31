@@ -28,7 +28,6 @@ export const addTransaction = async (req, res) => {
       user.totalBalance -= absAmount;
     } else if (transactionType === "Debt") {
       user.totalDebt = (user.totalDebt || 0) + absAmount;
-      user.totalBalance += absAmount; // Debt increases balance
     } else {
       user.totalIncome += absAmount;
       user.totalBalance += absAmount;
@@ -38,13 +37,11 @@ export const addTransaction = async (req, res) => {
     await user.save({ session });
 
     await session.commitTransaction();
-    res
-      .status(201)
-      .json({
-        msg: "Entry Created",
-        entry: createEntry,
-        newBalance: user.totalBalance,
-      });
+    res.status(201).json({
+      msg: "Entry Created",
+      entry: createEntry,
+      newBalance: user.totalBalance,
+    });
   } catch (error) {
     await session.abortTransaction();
     res.status(500).json({ msg: error.message });
@@ -73,14 +70,14 @@ export const deleteTransaction = async (req, res) => {
     if (transaction.transactionType === "Expense") {
       updateData.$inc = { totalBalance: absAmount, totalExpenses: -absAmount };
     } else if (transaction.transactionType === "Debt") {
-      updateData.$inc = { totalBalance: -absAmount, totalDebt: -absAmount }; // Reverse: subtract from balance/debt
+      updateData.$inc = { totalDebt: -absAmount }; //
     } else {
       updateData.$inc = { totalBalance: -absAmount, totalIncome: -absAmount };
     }
 
     const user = await User.findByIdAndUpdate(id, updateData, {
       session,
-      new: true,
+      returnDocument: true,
     });
     await session.commitTransaction();
     res.status(200).json({ msg: "Deleted", newBalance: user.totalBalance });
@@ -114,7 +111,6 @@ export const updateTransactionById = async (req, res) => {
       user.totalBalance += oldAbs;
     } else if (oldEntry.transactionType === "Debt") {
       user.totalDebt -= oldAbs;
-      user.totalBalance -= oldAbs;
     } else {
       user.totalIncome -= oldAbs;
       user.totalBalance -= oldAbs;
@@ -129,7 +125,6 @@ export const updateTransactionById = async (req, res) => {
       user.totalBalance -= newAbs;
     } else if (updatedType === "Debt") {
       user.totalDebt = (user.totalDebt || 0) + newAbs;
-      user.totalBalance += newAbs;
     } else {
       user.totalIncome += newAbs;
       user.totalBalance += newAbs;
@@ -143,13 +138,11 @@ export const updateTransactionById = async (req, res) => {
 
     await user.save({ session });
     await session.commitTransaction();
-    res
-      .status(200)
-      .json({
-        msg: "Updated",
-        entry: updatedEntry,
-        newBalance: user.totalBalance,
-      });
+    res.status(200).json({
+      msg: "Updated",
+      entry: updatedEntry,
+      newBalance: user.totalBalance,
+    });
   } catch (error) {
     await session.abortTransaction();
     res.status(500).json({ msg: error.message });

@@ -1,21 +1,16 @@
 import express, { urlencoded } from "express";
 import dotenv from "dotenv";
+dotenv.config();
 import dbConnection from "./config/db.js";
 import userRouter from "./routes/user.route.js";
 import entryRoute from "./routes/entry.route.js";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-dotenv.config({ quiet: true });
-const app = express();
+import nodeCron from "node-cron";
+import { sendMonthlyEmailWithPDF } from "./controllers/pdf.controller.js";
 
-(async () => {
-  try {
-    await dbConnection();
-  } catch (e) {
-    console.log(e.message);
-  }
-})();
+const app = express();
 
 app.set("trust proxy", 1); // trust first proxy
 app.use(cookieParser());
@@ -51,18 +46,37 @@ app.use(
 );
 app.use(express.json());
 app.use(urlencoded({ extended: true }));
-
-app;
 app.use("/users", userRouter);
 app.use("/entry", entryRoute);
 app.use("/health", (req, res) => {
   res.status(200).json({ status: "OK" });
 });
 
-app.listen(4000, (err) => {
-  if (!err) {
-    console.log("Server is running on port 3000");
-  } else {
-    console.log(err);
-  }
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    message: err.message || "Internal Server Error",
+  });
 });
+
+const startServer = async () => {
+  try {
+    await dbConnection();
+
+    const PORT = process.env.PORT || 4000;
+
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+
+    nodeCron.schedule("*/5 * * * * *", () => {
+      console.log("Running monthly email job...");
+      sendMonthlyEmailWithPDF();
+    });
+  } catch (e) {
+    console.error("Critical Error: Could not start server", e.message);
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -65,13 +65,12 @@ export const signup = async (req, res) => {
       token: accessToken,
     });
   } catch (error) {
-    console.log("Error occured", error.message);
+    throw new ApiError(error.message || "Internal Server Error", 500);
   }
 };
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
-  console.log(req.body);
 
   try {
     if (!email || !password) {
@@ -116,7 +115,7 @@ export const login = async (req, res) => {
       token: accessToken,
     });
   } catch (error) {
-    console.log(error.message);
+    throw new ApiError(error.message || "Internal Server Error", 500);
   }
 };
 
