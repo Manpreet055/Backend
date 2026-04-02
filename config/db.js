@@ -11,7 +11,7 @@ async function connectMongoDB() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = await mongoose
+    cached.promise = mongoose
       .connect(process.env.MONGO_URI, {
         bufferCommands: false,
         maxPoolSize: 10,

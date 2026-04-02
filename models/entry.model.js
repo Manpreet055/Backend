@@ -42,7 +42,7 @@ const entrySchema = new mongoose.Schema(
         "Salary",
         "Others",
         "Borrow",
-        "Loan",
+        "Loan ",
       ],
       required: true,
     },

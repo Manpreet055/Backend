@@ -4,6 +4,8 @@ import User from "../models/user.model.js";
 import { getPreviousMonthRange } from "../utils/utilsFunctions.js";
 import nodemailer from "nodemailer";
 import emailHtmlData from "../utils/emailHtmlData.js";
+import { configDotenv } from "dotenv";
+configDotenv();
 
 export const getPDFFileofTransactions = async (req, res, next) => {
   try {
@@ -41,7 +43,7 @@ export const getPDFFileofTransactions = async (req, res, next) => {
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user: "manpreet.mern@gmail.com", pass: "xjlm wjdn wypw xdnw" },
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
 export const sendMonthlyEmailWithPDF = async () => {
@@ -66,8 +68,8 @@ export const sendMonthlyEmailWithPDF = async () => {
       console.log(user.id);
 
       const transactions = await Entry.find({
-        userId: user._id,
-        date: { $gte: firstDayPrevMonth, $lte: lastDayPrevMonth },
+        userId: user.id,
+        createdAt: { $gte: firstDayPrevMonth, $lte: lastDayPrevMonth },
       }).sort({ date: -1 });
 
       console.log(transactions);

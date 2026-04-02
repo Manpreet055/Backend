@@ -69,10 +69,10 @@ const startServer = async () => {
       console.log(`Server is running on port ${PORT}`);
     });
 
-    nodeCron.schedule("*/5 * * * * *", () => {
-      console.log("Running monthly email job...");
-      sendMonthlyEmailWithPDF();
-    });
+    // nodeCron.schedule("*/5 * * * * *", async () => {
+    //   console.log("Running monthly email job...");
+    //   await sendMonthlyEmailWithPDF();
+    // });
   } catch (e) {
     console.error("Critical Error: Could not start server", e.message);
     process.exit(1);
