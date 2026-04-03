@@ -3,7 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import dbConnection from "./config/db.js";
 import userRouter from "./routes/user.route.js";
-import entryRoute from "./routes/entry.route.js";
+import entryRouter from "./routes/entry.route.js";
+import loanRouter from "./routes/loan.route.js";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
@@ -46,8 +47,9 @@ app.use(
 );
 app.use(express.json());
 app.use(urlencoded({ extended: true }));
+app.use("/loans", loanRouter);
 app.use("/users", userRouter);
-app.use("/entry", entryRoute);
+app.use("/entry", entryRouter);
 app.use("/health", (req, res) => {
   res.status(200).json({ status: "OK" });
 });
