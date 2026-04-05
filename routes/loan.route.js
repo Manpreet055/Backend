@@ -2,6 +2,7 @@ import { jwtmiddleware } from "../middlewares/authentication.middleware.js";
 import {
   addLoanDetails,
   getAllLoansDetails,
+  getLoanDetailsById,
 } from "../controllers/loan.controller.js";
 import express from "express";
 
@@ -12,4 +13,5 @@ router
   .get(jwtmiddleware, getAllLoansDetails)
   .post(jwtmiddleware, addLoanDetails);
 
+router.get("/:id", jwtmiddleware, getLoanDetailsById);
 export default router;
