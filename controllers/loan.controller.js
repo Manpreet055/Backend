@@ -3,26 +3,63 @@ import ApiError from "../utils/ApiError.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 
-export const addLoanDetails = async (req, res) => {
+export const addLoanDetails = async (req, res, next) => {
   const id = req?.user.id;
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const loanDetails = { ...req.body?.data, userId: id };
-    const loan = await Loan.create(loanDetails);
+    const { amount, totalEmis, emiAmount, repaymentCycle, date } =
+      req.body?.data;
+
+    // 1. Calculate the Last EMI Adjustment
+    // (emiAmount * totalEMIs) - amount is the difference to be added to the last one
+    const totalPaymentsExpected = emiAmount * totalEmis;
+    const adjustment = totalPaymentsExpected - amount;
+    const lastEmiValue = emiAmount - adjustment;
+
+    // 2. Generate the EMI Schedule (Milestones)
+    const schedule = [];
+    const startDate = new Date(date || Date.now());
+    const intervalDays = repaymentCycle === "15 days" ? 15 : 30;
+
+    for (let i = 1; i <= totalEmis; i++) {
+      const isLast = i === totalEmis;
+      const dueDate = new Date(startDate);
+      dueDate.setDate(startDate.getDate() + i * intervalDays);
+
+      schedule.push({
+        emiNumber: i,
+        amount: isLast ? lastEmiValue : emiAmount,
+        date: dueDate,
+        status: "Pending", // Default status
+        paymentId: new mongoose.Types.ObjectId(), // Unique key for toggling
+      });
+    }
+
+    const loanDetails = {
+      ...req.body?.data,
+      userId: id,
+      payments: schedule, // Structure is saved immediately
+    };
+
+    const loan = await Loan.create([loanDetails], { session });
     const user = await User.findById(id);
 
-    user.totalDebt += loanDetails.amount;
-    await user.save();
+    user.totalDebt += amount;
+    await user.save({ session });
 
+    await session.commitTransaction();
     res.status(201).json({
-      msg: "Loan Details Added",
-      loan,
+      msg: "Loan and EMI Schedule Created",
+      loan: loan[0],
     });
-    session.commitTransaction();
   } catch (error) {
     await session.abortTransaction();
-    throw new ApiError(error.message || "Server Error", 500);
+    console.error("DETAILED ERROR:", error); // Add this line
+    res.status(500).json({
+      msg: error.message || "Server Error",
+      stack: error.stack, // Only for development
+    });
   } finally {
     session.endSession();
   }

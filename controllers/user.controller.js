@@ -98,16 +98,23 @@ export const login = async (req, res) => {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
+    // max refresh tokens logic
+    const MAX_TOKENS = Number(process.env.MAX_REFRESH_TOKENS) || 5;
+
+    if (user.refreshToken.length === MAX_TOKENS) {
+      user.refreshToken.shift();
+      user.refreshToken.push(refreshToken);
+    } else {
+      user.refreshToken.push(refreshToken);
+    }
+    await user.save();
+
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production" ? true : false,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 15 * 24 * 60 * 60 * 1000,
     });
-
-    user.refreshToken = [...user.refreshToken, refreshToken];
-
-    await user.save();
 
     res.status(200).json({
       msg: "Login Successfull",
