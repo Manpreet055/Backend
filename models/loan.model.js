@@ -53,6 +53,11 @@ const LoanSchema = new mongoose.Schema(
     // Helper trackers
     paidEmis: { type: Number, default: 0 },
     pendingInstallments: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["Active", "Paid"],
+      default: "Active",
+    },
   },
   { timestamps: true },
 );
@@ -62,6 +67,9 @@ LoanSchema.pre("save", function () {
   if (this.payments) {
     this.paidEmis = this.payments.filter((p) => p.status === "Paid").length;
     this.pendingInstallments = this.totalEmis - this.paidEmis;
+  }
+  if (this.paidEmis === this.totalEmis) {
+    this.status = "Paid";
   }
 });
 
