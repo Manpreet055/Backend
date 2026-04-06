@@ -3,62 +3,84 @@ import ApiError from "../utils/ApiError.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 
-export const addLoanDetails = async (req, res, next) => {
+export const addLoanDetails = async (req, res) => {
   const id = req?.user.id;
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
-    const { amount, totalEmis, emiAmount, repaymentCycle, date } =
-      req.body?.data;
+    const {
+      amount,
+      additionalAmount = 0,
+      interest = 0,
+      totalEmis,
+      emiAmount,
+      repaymentCycle,
+      date,
+      debtType,
+    } = req.body?.data;
 
-    // 1. Calculate the Last EMI Adjustment
-    // (emiAmount * totalEMIs) - amount is the difference to be added to the last one
-    const totalPaymentsExpected = emiAmount * totalEmis;
-    const adjustment = totalPaymentsExpected - amount;
-    const lastEmiValue = emiAmount - adjustment;
+    // 1. Calculate Base Principal (Amount + Fees)
+    const basePrincipal = amount + additionalAmount;
 
-    // 2. Generate the EMI Schedule (Milestones)
-    const schedule = [];
+    // 2. Apply Interest Percentage to the Base Principal
+    // Total Debt = Principal + (Principal * Interest / 100)
+    const totalPayable = basePrincipal + basePrincipal * (interest / 100);
+
+    let schedule = [];
     const startDate = new Date(date || Date.now());
-    const intervalDays = repaymentCycle === "15 days" ? 15 : 30;
 
-    for (let i = 1; i <= totalEmis; i++) {
-      const isLast = i === totalEmis;
-      const dueDate = new Date(startDate);
-      dueDate.setDate(startDate.getDate() + i * intervalDays);
+    // 3. Logic Branching: Structured Loan vs. Flexible Borrowing
+    if (debtType === "Loan") {
+      // Structured path: Use emiAmount and totalEmis
+      const totalPaymentsFromEmis = emiAmount * totalEmis;
+      const adjustment = totalPaymentsFromEmis - totalPayable;
+      const lastEmiValue = emiAmount - adjustment;
 
-      schedule.push({
-        emiNumber: i,
-        amount: isLast ? lastEmiValue : emiAmount,
-        date: dueDate,
-        status: "Pending", // Default status
-        paymentId: new mongoose.Types.ObjectId(), // Unique key for toggling
-      });
+      const intervalDays = repaymentCycle === "15 days" ? 15 : 30;
+
+      for (let i = 1; i <= totalEmis; i++) {
+        const isLast = i === totalEmis;
+        const dueDate = new Date(startDate);
+        dueDate.setDate(startDate.getDate() + i * intervalDays);
+
+        schedule.push({
+          emiNumber: i,
+          amount: isLast ? lastEmiValue : emiAmount,
+          date: dueDate,
+          status: "Pending",
+          paymentId: new mongoose.Types.ObjectId(),
+        });
+      }
+    } else {
+      // Flexible path: Schedule starts empty for chunks to be added later
+      schedule = [];
     }
 
     const loanDetails = {
       ...req.body?.data,
       userId: id,
-      payments: schedule, // Structure is saved immediately
+      amount: totalPayable, // The new principle includes interest and fees
+      payments: schedule,
     };
 
     const loan = await Loan.create([loanDetails], { session });
     const user = await User.findById(id);
 
-    user.totalDebt += amount;
+    // Update User's overall debt with the interest-inclusive amount
+    user.totalDebt += totalPayable;
     await user.save({ session });
 
     await session.commitTransaction();
     res.status(201).json({
-      msg: "Loan and EMI Schedule Created",
+      msg: `${debtType} Details Added Successfully`,
       loan: loan[0],
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error("DETAILED ERROR:", error); // Add this line
+    console.error("DETAILED ERROR:", error);
     res.status(500).json({
       msg: error.message || "Server Error",
-      stack: error.stack, // Only for development
     });
   } finally {
     session.endSession();
