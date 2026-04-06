@@ -27,6 +27,7 @@ const LoanSchema = new mongoose.Schema(
     loanProvider: { type: String, required: true, trim: true },
     amount: { type: Number, required: true }, // Initial borrowed/loan amount
     additionalAmount: { type: Number, default: 0 },
+    notes: { type: String, trim: true },
     totalEmis: {
       type: Number,
       required: function () {

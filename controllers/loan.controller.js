@@ -125,3 +125,21 @@ export const getLoanDetailsById = async (req, res) => {
     throw new ApiError(error.message || "Server Error", 500);
   }
 };
+
+export const deleteLoanDetailsById = async (req, res) => {
+  const id = req.params.id;
+  try {
+    const deleteLoan = await Loan.findByIdAndDelete(id);
+    if (!deleteLoan) {
+      return res.status(404).json({
+        msg: "Loan not found",
+      });
+    }
+
+    res.status(200).json({
+      msg: "Loan details deleted",
+    });
+  } catch (error) {
+    throw new ApiError(error.message || "Server Error", 500);
+  }
+};
