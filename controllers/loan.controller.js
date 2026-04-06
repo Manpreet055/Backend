@@ -14,61 +14,65 @@ export const addLoanDetails = async (req, res) => {
       additionalAmount = 0,
       interest = 0,
       totalEmis,
+      paidEmis = 0, // Number of EMIs already completed
       emiAmount,
       repaymentCycle,
       date,
       debtType,
     } = req.body?.data;
 
-    // 1. Calculate Base Principal (Amount + Fees)
-    const basePrincipal = amount + additionalAmount;
-
-    // 2. Apply Interest Percentage to the Base Principal
-    // Total Debt = Principal + (Principal * Interest / 100)
+    // 1. Calculate Total Payable (Principal + Interest)
+    const basePrincipal = Number(amount) + Number(additionalAmount);
     const totalPayable = basePrincipal + basePrincipal * (interest / 100);
 
+    // 2. Calculate what's already been paid and what's left
+    const alreadyPaidAmount = Number(paidEmis) * Number(emiAmount);
+    const remainingDebt = totalPayable - alreadyPaidAmount;
+
     let schedule = [];
-    const startDate = new Date(date || Date.now());
+    // The 'date' provided is the Next Installment Date
+    const nextInstallmentDate = new Date(date);
 
-    // 3. Logic Branching: Structured Loan vs. Flexible Borrowing
     if (debtType === "Loan") {
-      // Structured path: Use emiAmount and totalEmis
-      const totalPaymentsFromEmis = emiAmount * totalEmis;
-      const adjustment = totalPaymentsFromEmis - totalPayable;
-      const lastEmiValue = emiAmount - adjustment;
-
       const intervalDays = repaymentCycle === "15 days" ? 15 : 30;
 
-      for (let i = 1; i <= totalEmis; i++) {
-        const isLast = i === totalEmis;
-        const dueDate = new Date(startDate);
-        dueDate.setDate(startDate.getDate() + i * intervalDays);
+      // Loop starts from the first UNPAID installment
+      for (let i = Number(paidEmis) + 1; i <= Number(totalEmis); i++) {
+        const isLast = i === Number(totalEmis);
+
+        const dueDate = new Date(nextInstallmentDate);
+        // Offset starts at 0 for the first unpaid installment (i - (paidEmis + 1))
+        const offset = (i - (Number(paidEmis) + 1)) * intervalDays;
+        dueDate.setDate(nextInstallmentDate.getDate() + offset);
+
+        // Adjust the very last EMI to catch any rounding differences
+        const currentEmiAmount = isLast
+          ? remainingDebt - emiAmount * (totalEmis - i)
+          : emiAmount;
 
         schedule.push({
           emiNumber: i,
-          amount: isLast ? lastEmiValue : emiAmount,
+          amount: currentEmiAmount,
           date: dueDate,
           status: "Pending",
           paymentId: new mongoose.Types.ObjectId(),
         });
       }
-    } else {
-      // Flexible path: Schedule starts empty for chunks to be added later
-      schedule = [];
     }
 
     const loanDetails = {
       ...req.body?.data,
       userId: id,
-      amount: totalPayable, // The new principle includes interest and fees
+      amount: totalPayable, // This is the active debt we are tracking
+      paidEmis: Number(paidEmis), // Explicitly saving the starting progress
       payments: schedule,
     };
 
     const loan = await Loan.create([loanDetails], { session });
     const user = await User.findById(id);
 
-    // Update User's overall debt with the interest-inclusive amount
-    user.totalDebt += totalPayable;
+    // Increment user's global debt by the remaining amount
+    user.totalDebt += remainingDebt;
     await user.save({ session });
 
     await session.commitTransaction();
@@ -78,10 +82,8 @@ export const addLoanDetails = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error("DETAILED ERROR:", error);
-    res.status(500).json({
-      msg: error.message || "Server Error",
-    });
+    console.error("Error adding loan:", error);
+    res.status(500).json({ msg: error.message || "Server Error" });
   } finally {
     session.endSession();
   }
@@ -127,19 +129,43 @@ export const getLoanDetailsById = async (req, res) => {
 };
 
 export const deleteLoanDetailsById = async (req, res) => {
-  const id = req.params.id;
+  const userId = req.user?.id; // Corrected optional chaining
+  const loanId = req.params.id;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const deleteLoan = await Loan.findByIdAndDelete(id);
-    if (!deleteLoan) {
-      return res.status(404).json({
-        msg: "Loan not found",
-      });
+    const loan = await Loan.findById(loanId).session(session);
+    if (!loan) {
+      throw new ApiError("Loan not found", 404);
     }
 
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      throw new ApiError("User not found", 404);
+    }
+
+    user.totalDebt -= loan.amount;
+    await user.save({ session });
+
+    await Loan.findByIdAndDelete(loanId).session(session);
+
+    await session.commitTransaction();
+
     res.status(200).json({
-      msg: "Loan details deleted",
+      success: true,
+      msg: "Loan details deleted and user debt updated",
     });
   } catch (error) {
-    throw new ApiError(error.message || "Server Error", 500);
+    // 6. Roll back changes if anything fails
+    await session.abortTransaction();
+    // Assuming ApiError is a custom class you've defined
+    res.status(error.statusCode || 500).json({
+      message: error.message || "Server Error",
+    });
+  } finally {
+    // 7. Always close the session
+    session.endSession();
   }
 };
