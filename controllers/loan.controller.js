@@ -14,41 +14,44 @@ export const addLoanDetails = async (req, res) => {
       additionalAmount = 0,
       interest = 0,
       totalEmis,
-      paidEmis = 0, // Number of EMIs already completed
+      paidEmis = 0, // Ensure this is coming from req.body.data
       emiAmount,
       repaymentCycle,
       date,
       debtType,
     } = req.body?.data;
 
-    // 1. Calculate Total Payable (Principal + Interest)
-    const basePrincipal = Number(amount) + Number(additionalAmount);
-    const totalPayable = basePrincipal + basePrincipal * (interest / 100);
+    console.log(req.body?.data);
 
-    // 2. Calculate what's already been paid and what's left
-    const alreadyPaidAmount = Number(paidEmis) * Number(emiAmount);
-    const remainingDebt = totalPayable - alreadyPaidAmount;
+    // 1. Permanent Total Amount (Principal + Interest)
+    // This should never change regardless of payments
+    const basePrincipal = Number(amount) + Number(additionalAmount);
+    const totalLoanValue =
+      basePrincipal + basePrincipal * (Number(interest) / 100);
+
+    // 2. Calculate Progress
+    const userPaidEmis = Number(paidEmis);
+    const alreadyPaidAmount = userPaidEmis * Number(emiAmount);
+    const remainingBalance = totalLoanValue - alreadyPaidAmount;
 
     let schedule = [];
-    // The 'date' provided is the Next Installment Date
     const nextInstallmentDate = new Date(date);
 
     if (debtType === "Loan") {
       const intervalDays = repaymentCycle === "15 days" ? 15 : 30;
 
-      // Loop starts from the first UNPAID installment
-      for (let i = Number(paidEmis) + 1; i <= Number(totalEmis); i++) {
+      // Start loop from the first pending EMI
+      for (let i = userPaidEmis + 1; i <= Number(totalEmis); i++) {
         const isLast = i === Number(totalEmis);
 
         const dueDate = new Date(nextInstallmentDate);
-        // Offset starts at 0 for the first unpaid installment (i - (paidEmis + 1))
-        const offset = (i - (Number(paidEmis) + 1)) * intervalDays;
+        const offset = (i - (userPaidEmis + 1)) * intervalDays;
         dueDate.setDate(nextInstallmentDate.getDate() + offset);
 
-        // Adjust the very last EMI to catch any rounding differences
+        // Adjust last EMI for rounding
         const currentEmiAmount = isLast
-          ? remainingDebt - emiAmount * (totalEmis - i)
-          : emiAmount;
+          ? remainingBalance - emiAmount * (Number(totalEmis) - i)
+          : Number(emiAmount);
 
         schedule.push({
           emiNumber: i,
@@ -63,16 +66,17 @@ export const addLoanDetails = async (req, res) => {
     const loanDetails = {
       ...req.body?.data,
       userId: id,
-      amount: totalPayable, // This is the active debt we are tracking
-      paidEmis: Number(paidEmis), // Explicitly saving the starting progress
+      amount: totalLoanValue, // ALWAYS the full amount (Fixed)
+      remainingBalance: remainingBalance, // The actual money left to pay (Dynamic)
+      paidEmis: userPaidEmis, // Saving the progress correctly now
       payments: schedule,
     };
 
     const loan = await Loan.create([loanDetails], { session });
     const user = await User.findById(id);
 
-    // Increment user's global debt by the remaining amount
-    user.totalDebt += remainingDebt;
+    // Update User's total debt only by what is ACTUALLY remaining
+    user.totalDebt += remainingBalance;
     await user.save({ session });
 
     await session.commitTransaction();
@@ -82,7 +86,7 @@ export const addLoanDetails = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error("Error adding loan:", error);
+    console.error("LOAN_INSERT_ERROR:", error);
     res.status(500).json({ msg: error.message || "Server Error" });
   } finally {
     session.endSession();

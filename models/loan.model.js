@@ -76,31 +76,27 @@ const LoanSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Unified Middleware for both Loan and Borrow logic
 LoanSchema.pre("save", function () {
-  const totalPrincipal = this.amount + (this.additionalAmount || 0);
+  const base = Number(this.amount) + Number(this.additionalAmount || 0);
+  const totalWithInterest = base + base * (Number(this.interest || 0) / 100);
 
   if (this.payments) {
-    // 1. Calculate how much has been paid in total (sum of all 'Paid' status amounts)
-    const totalPaidAmount = this.payments
+    const actualPaidInArray = this.payments
       .filter((p) => p.status === "Paid")
       .reduce((sum, p) => sum + p.amount, 0);
 
-    // 2. Update remaining balance
-    this.remainingBalance = Math.max(0, totalPrincipal - totalPaidAmount);
+    const initialPaidAmount =
+      this.debtType === "Loan" ? this.paidEmis * this.emiAmount : 0;
 
-    // 3. Track milestone counts
-    this.paidEmis = this.payments.filter((p) => p.status === "Paid").length;
+    const totalPaidSoFar = initialPaidAmount + actualPaidInArray;
 
-    // 4. Handle Status and Remaining Counts differently based on type
-    if (this.debtType === "Loan") {
-      this.pendingInstallments = Math.max(0, this.totalEmis - this.paidEmis);
-    } else {
-      // For 'Borrow', installments aren't fixed, so we just track them as 0 or 1
-      this.pendingInstallments = this.remainingBalance > 0 ? 1 : 0;
-    }
+    this.remainingBalance = Math.max(0, totalWithInterest - totalPaidSoFar);
 
-    // 5. Auto-close the debt if balance is 0
+    const newPaidCount = this.payments.filter(
+      (p) => p.status === "Paid",
+    ).length;
+    // We only increment if we aren't in the "initial create" phase to avoid double counting
+
     if (this.remainingBalance <= 0) {
       this.status = "Closed";
     } else {
