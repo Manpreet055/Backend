@@ -155,7 +155,7 @@ export const deleteLoanDetailsById = async (req, res) => {
       throw new ApiError("User not found", 404);
     }
 
-    user.totalDebt -= loan.amount;
+    user.totalDebt -= loan.remainingBalance;
     await user.save({ session });
 
     await Loan.findByIdAndDelete(loanId).session(session);
