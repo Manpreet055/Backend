@@ -77,26 +77,32 @@ const LoanSchema = new mongoose.Schema(
 );
 
 LoanSchema.pre("save", function () {
-  const base = Number(this.amount) + Number(this.additionalAmount || 0);
-  const totalWithInterest = base + base * (Number(this.interest || 0) / 100);
+  // 1. Align the math: Interest only on the core Principal (this.amount)
+  const principal = Number(this.amount);
+  const interestRate = Number(this.interest || 0) / 100;
+  const flatFees = Number(this.additionalAmount || 0);
+
+  // (50000 * 1.045) + 2500 = 54750
+  const totalLoanValue = principal * (1 + interestRate) + flatFees;
 
   if (this.payments) {
+    // Payments already marked "Paid" in the array
     const actualPaidInArray = this.payments
       .filter((p) => p.status === "Paid")
       .reduce((sum, p) => sum + p.amount, 0);
 
+    // Initial payments made before tracking started
     const initialPaidAmount =
-      this.debtType === "Loan" ? this.paidEmis * this.emiAmount : 0;
+      this.debtType === "Loan"
+        ? Number(this.paidEmis) * Number(this.emiAmount)
+        : 0;
 
     const totalPaidSoFar = initialPaidAmount + actualPaidInArray;
 
-    this.remainingBalance = Math.max(0, totalWithInterest - totalPaidSoFar);
+    // Set the balance accurately
+    this.remainingBalance = Math.max(0, totalLoanValue - totalPaidSoFar);
 
-    const newPaidCount = this.payments.filter(
-      (p) => p.status === "Paid",
-    ).length;
-    // We only increment if we aren't in the "initial create" phase to avoid double counting
-
+    // Update Status
     if (this.remainingBalance <= 0) {
       this.status = "Closed";
     } else {

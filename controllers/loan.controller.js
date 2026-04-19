@@ -14,48 +14,49 @@ export const addLoanDetails = async (req, res) => {
       additionalAmount = 0,
       interest = 0,
       totalEmis,
-      paidEmis = 0, // Ensure this is coming from req.body.data
+      paidEmis = 0,
       emiAmount,
       repaymentCycle,
       date,
       debtType,
     } = req.body?.data;
 
-    console.log(req.body?.data);
-
-    // 1. Permanent Total Amount (Principal + Interest)
-    // This should never change regardless of payments
-    const basePrincipal = Number(amount) + Number(additionalAmount);
-    const totalLoanValue =
-      basePrincipal + basePrincipal * (Number(interest) / 100);
-
-    // 2. Calculate Progress
+    // 1. Setup initial variables
     const userPaidEmis = Number(paidEmis);
-    const alreadyPaidAmount = userPaidEmis * Number(emiAmount);
-    const remainingBalance = totalLoanValue - alreadyPaidAmount;
+    const monthlyEmiVal = Number(emiAmount);
+
+    // We calculate the remaining balance here ONLY to determine the
+    // last EMI amount in the loop logic below.
+    const principal = Number(amount);
+    const interestRate = Number(interest) / 100;
+    const totalLoanValue =
+      principal * (1 + interestRate) + Number(additionalAmount);
+    const remainingBalanceAtStart =
+      totalLoanValue - userPaidEmis * monthlyEmiVal;
 
     let schedule = [];
     const nextInstallmentDate = new Date(date);
 
     if (debtType === "Loan") {
       const intervalDays = repaymentCycle === "15 days" ? 15 : 30;
+      const remainingEmisCount = Number(totalEmis) - userPaidEmis;
 
-      // Start loop from the first pending EMI
-      for (let i = userPaidEmis + 1; i <= Number(totalEmis); i++) {
-        const isLast = i === Number(totalEmis);
+      for (let i = 1; i <= remainingEmisCount; i++) {
+        const currentEmiNumber = userPaidEmis + i;
+        const isLast = i === remainingEmisCount;
 
         const dueDate = new Date(nextInstallmentDate);
-        const offset = (i - (userPaidEmis + 1)) * intervalDays;
-        dueDate.setDate(nextInstallmentDate.getDate() + offset);
+        // (i-1) ensures the first pending EMI is exactly on the 'date' selected
+        dueDate.setDate(nextInstallmentDate.getDate() + (i - 1) * intervalDays);
 
-        // Adjust last EMI for rounding
+        // Calculate last EMI to absorb any rounding differences
         const currentEmiAmount = isLast
-          ? remainingBalance - emiAmount * (Number(totalEmis) - i)
-          : Number(emiAmount);
+          ? remainingBalanceAtStart - monthlyEmiVal * (remainingEmisCount - 1)
+          : monthlyEmiVal;
 
         schedule.push({
-          emiNumber: i,
-          amount: currentEmiAmount,
+          emiNumber: currentEmiNumber,
+          amount: Math.round(currentEmiAmount),
           date: dueDate,
           status: "Pending",
           paymentId: new mongoose.Types.ObjectId(),
@@ -63,29 +64,33 @@ export const addLoanDetails = async (req, res) => {
       }
     }
 
-    const loanDetails = {
+    // 2. Construct the document
+    // We pass the raw values; the pre-save hook will finalize the remainingBalance
+    const loanToCreate = {
       ...req.body?.data,
       userId: id,
-      amount: totalLoanValue, // ALWAYS the full amount (Fixed)
-      remainingBalance: remainingBalance, // The actual money left to pay (Dynamic)
-      paidEmis: userPaidEmis, // Saving the progress correctly now
       payments: schedule,
     };
 
-    const loan = await Loan.create([loanDetails], { session });
-    const user = await User.findById(id);
+    const loanArray = await Loan.create([loanToCreate], { session });
+    const savedLoan = loanArray[0];
 
-    // Update User's total debt only by what is ACTUALLY remaining
-    user.totalDebt += remainingBalance;
+    // 3. Update User Debt
+    // We use the remainingBalance that was JUST calculated by the Mongoose Hook
+    const user = await User.findById(id);
+    user.totalDebt += savedLoan.remainingBalance;
     await user.save({ session });
 
     await session.commitTransaction();
+
     res.status(201).json({
       msg: `${debtType} Details Added Successfully`,
-      loan: loan[0],
+      loan: savedLoan,
     });
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     console.error("LOAN_INSERT_ERROR:", error);
     res.status(500).json({ msg: error.message || "Server Error" });
   } finally {

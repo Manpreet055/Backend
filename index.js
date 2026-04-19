@@ -1,6 +1,6 @@
 import express, { urlencoded } from "express";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 import dbConnection from "./config/db.js";
 import userRouter from "./routes/user.route.js";
 import entryRouter from "./routes/entry.route.js";
