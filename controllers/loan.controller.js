@@ -178,3 +178,13 @@ export const deleteLoanDetailsById = async (req, res) => {
     session.endSession();
   }
 };
+
+export const updateLoanDetailsById = (req, res) => {
+  try {
+    res.status(200).json({
+      msg: "Transaction Updated",
+    });
+  } catch (error) {
+    throw new ApiError(error.message || "Server Error", 500);
+  }
+};

@@ -4,6 +4,7 @@ import {
   getAllLoansDetails,
   getLoanDetailsById,
   deleteLoanDetailsById,
+  updateLoanDetailsById,
 } from "../controllers/loan.controller.js";
 import express from "express";
 
@@ -17,5 +18,6 @@ router
 router
   .route("/:id")
   .get(jwtmiddleware, getLoanDetailsById)
+  .patch(jwtmiddleware, updateLoanDetailsById)
   .delete(jwtmiddleware, deleteLoanDetailsById);
 export default router;
